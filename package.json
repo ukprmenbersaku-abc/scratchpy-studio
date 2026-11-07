@@ -1,0 +1,47 @@
+{
+  "name": "scratchpy-studio",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Scratch(.sb3) ⇔ ScratchPy(独自言語) 相互変換スタジオ",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5173",
+    "build": "tsc -b && node scripts/build-pages.mjs",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev:ja": "vite --host 0.0.0.0 --port 5173 --strictPort",
+    "dev:en": "VITE_APP_LANGUAGE=en vite --host 0.0.0.0 --port 5174 --strictPort",
+    "start:both": "bash scripts/start-both.sh",
+    "build:en": "VITE_APP_LANGUAGE=en tsc -b && VITE_APP_LANGUAGE=en vite build --outDir dist-en",
+    "dev:education": "VITE_APP_EDUCATION=true vite --host 0.0.0.0 --port 5175 --strictPort",
+    "build:education": "VITE_APP_EDUCATION=true tsc -b && VITE_APP_EDUCATION=true vite build --outDir dist-education",
+    "start:education": "bash scripts/start-education.sh",
+    "start:all": "bash scripts/start-all.sh",
+    "dev:education:en": "VITE_APP_EDUCATION=true VITE_APP_LANGUAGE=en vite --host 0.0.0.0 --port 5176 --strictPort",
+    "build:education:en": "VITE_APP_EDUCATION=true VITE_APP_LANGUAGE=en tsc -b && VITE_APP_EDUCATION=true VITE_APP_LANGUAGE=en vite build --outDir dist-education-en",
+    "start:education:en": "bash scripts/start-education-en.sh",
+    "build:ja": "tsc -b && vite build --outDir dist-ja",
+    "build:pages": "npm run build",
+    "preview:pages": "vite preview --host 0.0.0.0 --port 4173 --strictPort",
+    "start:pages": "node scripts/start-pages.mjs"
+  },
+  "dependencies": {
+    "blockly": "^12.5.1",
+    "fflate": "^0.8.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
+    "rehype-slug": "^6.0.0",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
+  }
+}

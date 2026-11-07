@@ -1,0 +1,20 @@
+import { useState } from 'react';
+import { EN, t } from '../app/i18n';
+import { IconArrowRight, IconBook, IconCode, IconLightbulb } from '../app/components/Icons';
+import { LECTURES } from './lectures';
+import { PYTHON_STEPS } from './pythonSteps';
+import type { Lesson } from './lessons';
+
+export default function LecturePage({lesson,index,onPractice}:{lesson:Lesson;index:number;onPractice:()=>void}) {
+  const lecture=LECTURES[lesson.id][EN?'en':'ja'];
+  const pythonStep=PYTHON_STEPS[lesson.id]?.[EN?'en':'ja'];
+  const [choice,setChoice]=useState<number|null>(null);
+  return <div className="edu-lecture">
+    <div className="edu-lecture-hero"><div><span className="edu-lecture-kicker">{t('まずは講習から','START WITH THE LESSON')} · {String(index+1).padStart(2,'0')}</span><h2>{t('今日のテーマ','Today’s topic')}：{lesson.concept}</h2><p>{lecture.intro}</p></div><span className="edu-lecture-hero-icon"><IconBook size={30}/></span></div>
+    <section className="edu-lecture-section"><div className="edu-lecture-heading"><span>01</span><div><h3>{t('ポイントを知ろう','Learn the idea')}</h3><p>{t('まずは3つのポイントを確認しよう','Start with these three key points')}</p></div></div><ol className="edu-lecture-points">{lecture.points.map((point,i)=><li key={i}><span>{i+1}</span>{point}</li>)}</ol></section>
+    <section className="edu-lecture-section"><div className="edu-lecture-heading"><span>02</span><div><h3>{t('コードを読んでみよう','Read an example')}</h3><p>{t('ScratchPy の書き方を見てみよう（部分的な例です）','See the ScratchPy syntax (a code excerpt)')}</p></div></div><div className="edu-example-card"><div><IconCode size={16}/> SCRATCHPY <span>{t('書き方の例','EXAMPLE')}</span></div><pre><code>{lecture.scratchpy}</code></pre></div><div className="edu-think"><IconLightbulb size={19}/><div><strong>{t('考えてみよう','Think about it')}</strong><p>{lecture.question}</p></div></div></section>
+    <section className="edu-lecture-section edu-python-section"><div className="edu-lecture-heading"><span>03</span><div><h3>{t('Python につなげよう','Connect it to Python')}</h3><p>{t('似ているところと、違うところを比べよう','Compare what is similar and what is different')}</p></div></div><p className="edu-python-bridge">{lecture.bridge}</p><div className="edu-example-card python"><div><IconCode size={16}/> PYTHON <span>{t('参考例・この画面では実行できません','REFERENCE · NOT RUN HERE')}</span></div><pre><code>{lecture.python}</code></pre></div><p className="edu-python-caution">{t('課題で使うのは ScratchPy です。Python の例は比較用で、課題エディターでは動きません。','The exercise uses ScratchPy. The Python example is for comparison and cannot run in the exercise editor.')}</p></section>
+    {pythonStep && <section className="edu-lecture-section edu-python-quiz"><div className="edu-lecture-heading"><span>04</span><div><h3>{t('Python ステップアップ','Python step-up')}：{pythonStep.title}</h3><p>{t('Python のコードを読んで、結果を予想しよう','Read the Python code and predict the result')}</p></div></div><p className="edu-python-bridge">{pythonStep.description}</p><div className="edu-example-card python"><div><IconCode size={16}/> PYTHON <span>{t('参考例・この画面では実行できません','REFERENCE · NOT RUN HERE')}</span></div><pre><code>{pythonStep.code}</code></pre></div><fieldset className="edu-quiz-choices"><legend>{pythonStep.question}</legend>{pythonStep.options.map((option,i)=><button key={i} type="button" className={choice===i?(i===pythonStep.answer?'correct':'incorrect'):''} aria-pressed={choice===i} onClick={()=>setChoice(i)}><span>{String.fromCharCode(65+i)}</span>{option}</button>)}</fieldset>{choice!==null && <div role="status" className={`edu-quiz-feedback ${choice===pythonStep.answer?'correct':'retry'}`}>{choice===pythonStep.answer?t('正解！','Correct!')+' '+pythonStep.explanation:t('もう一度考えてみよう。','Try again. You can select another answer.')}</div>}</section>}
+    <div className="edu-lecture-action"><div><strong>{t('講習を読んだら、やってみよう！','Finished reading? Give it a try!')}</strong><p>{t('いつでも講習に戻って見直せます。','You can return to the lesson whenever you need.')}</p></div><button className="edu-primary" onClick={onPractice}>{t('課題にすすむ','Go to the challenge')} <IconArrowRight size={17}/></button></div>
+  </div>;
+}

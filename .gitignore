@@ -1,0 +1,23 @@
+# Dependencies, build output and generated state
+node_modules/
+dist/
+dist-*/
+*.tsbuildinfo
+.vite/
+coverage/
+.wrangler/
+.dev.vars*
+
+# Local secrets and credentials (never commit API keys)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs and OS/editor files
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
