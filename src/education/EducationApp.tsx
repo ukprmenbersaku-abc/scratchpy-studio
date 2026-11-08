@@ -4,6 +4,8 @@ import Editor, { type EditorHandle } from '../app/components/Editor';
 import { BlocklyPanel } from '../app/components/BlocklyPanel';
 import LecturePage from './LecturePage';
 import EditionMenu from '../app/components/EditionMenu';
+import EducationAssistant from './EducationAssistant';
+import ScratchPlayer from '../app/components/ScratchPlayer';
 import { EN, t } from '../app/i18n';
 import { IconLogo, IconBook, IconCode, IconPuzzle, IconChevronRight, IconCheckCircle, IconLightbulb, IconDownload, IconFolderOpen, IconRefresh, IconArrowRight, IconXCircle } from '../app/components/Icons';
 import { LESSONS, EN_LESSONS, type LessonId } from './lessons';
@@ -36,7 +38,7 @@ function LearnGuide({onClose}:{onClose:()=>void}) {
     [t('レッスンに挑戦','Try a lesson'),t('先に講習を読んで「課題にすすむ」を押そう。コードを書きかえてチェック！ ブロックは見るだけだよ。','Read the lesson first, then select “Go to the challenge”. Edit the code and check your answer; blocks are read-only.')],
     [t('困ったらヒント','Need a hint?'),t('ヒントやコードの解説を読んでみよう。エラーが出ても、何度でもやり直せるよ。','Open the hint and code note. If you make a mistake, you can always try again.')],
     [t('エディターで作ろう','Create in the Editor'),t('ブロックをつないで「コードに反映」を押そう。コードも直接編集できるよ。','Connect blocks and select “Apply to code”. You can also edit the code directly.')],
-    [t('Scratchで動かそう','Run it in Scratch'),t('「.sb3を保存」でダウンロード。Scratchの「ファイル → コンピューターから読み込む」で開いてね。この画面では実行できないよ。','Download an .sb3 file, then open it in Scratch using File → Load from your computer. This app does not run projects.')],
+    [t('Scratchで動かそう','Run it in Scratch'),t('画面の「実行」で試せるよ。保存した .sb3 を Scratch で開くこともできるよ。','Use Run to try your project here, or download an .sb3 file and open it in Scratch.')],
     [t('保存について','Saving your work'),t('レッスンの進捗とコードはこのブラウザに保存。エディターの作品・画像・音はページを閉じると消えるので、.sb3を保存してね。','Lesson progress and code are saved in this browser. Editor projects and imported assets are temporary: save an .sb3 file before leaving.')],
   ];
   return <div className="edu-guide" role="dialog" aria-modal="true" aria-label={t('使い方ガイド','How to use')}><div className="edu-guide-card">
@@ -59,6 +61,8 @@ export default function EducationApp() {
   const [freeCode,setFreeCode]=useState(starter);
   const [freeAssets,setFreeAssets]=useState<AssetStore>(emptyAssetStore);
   const [freeFileName,setFreeFileName]=useState('');
+  const [freeOriginal,setFreeOriginal]=useState<Uint8Array|null>(null);
+  const [freeImportNotes,setFreeImportNotes]=useState<string[]>([]);
   const [blockDirty,setBlockDirty]=useState(false);
   const [hint,setHint]=useState(false);
   const [guide,setGuide]=useState(false);
@@ -69,6 +73,7 @@ export default function EducationApp() {
   const editorRef=useRef<EditorHandle>(null);
   const mainRef=useRef<HTMLElement>(null);
   const layoutRef=useRef<HTMLDivElement>(null);
+  const supportRef=useRef<HTMLElement>(null);
   const fileRef=useRef<HTMLInputElement>(null);
   const analysis=useMemo(()=>analyzeText(text),[text]);
   const errors=analysis.diagnostics.filter(d=>d.severity==='error');
@@ -86,7 +91,7 @@ export default function EducationApp() {
   const reset=()=>{
     if(!window.confirm(t('いまのコードとブロックをはじめの状態にもどしますか？','Reset this workspace to its starting state?')))return;
     updateText(lesson?.starter ?? starter);setBlockDirty(false);setWorkspaceKey(k=>k+1);setFeedback(null);setNotice(t('はじめの状態にもどしたよ。','Workspace reset.'));
-    if(!lesson){setAssets(emptyAssetStore());setFreeAssets(emptyAssetStore());setFileName('');setFreeFileName('');}
+    if(!lesson){setAssets(emptyAssetStore());setFreeAssets(emptyAssetStore());setFileName('');setFreeFileName('');setFreeOriginal(null);setFreeImportNotes([]);}
   };
   const check=()=>{
     if(!lesson)return;
@@ -97,13 +102,14 @@ export default function EducationApp() {
   };
   const download=()=>{
     if(blockDirty){setNotice(t('先にブロックの「コードに反映」を押してね。','Apply your block changes to the code first.'));return;}
+    if(!lesson && freeImportNotes.length && !window.confirm(t('変換時に警告があったため、元の作品の一部が失われるかもしれません。元の.sb3を残して保存しますか？','Conversion warnings indicate some data may be lost. Keep the original .sb3 and continue?')))return;
     try{const result=textToSb3(text,assets);const url=URL.createObjectURL(new Blob([result.bytes as unknown as ArrayBuffer],{type:'application/octet-stream'}));const a=document.createElement('a');a.href=url;a.download=fileName||`scratchpy-${current}.sb3`;a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);setNotice(t('保存したファイルをScratchの「ファイル → コンピューターから読み込む」で開いてね。','Open the downloaded file in Scratch: File → Load from your computer.'));}
     catch(e){setNotice(t(`ファイルを作れなかったよ。コードをたしかめてね。${(e as Error).message}`,`Could not create the file. Check your code. Details: ${(e as Error).message}`));}
   };
   const upload=async(event:React.ChangeEvent<HTMLInputElement>)=>{
     const file=event.target.files?.[0];event.target.value='';if(!file)return;
     if((blockDirty||freeCode!==starter||!!freeFileName)&&!window.confirm(t('エディターの今の作品と未反映のブロックを置きかえてファイルをひらきますか？ 必要なら先に .sb3 で保存してね。','Replace the current editor project and uncommitted blocks? Save an .sb3 first if you need it.')))return;
-    try{const imported=sb3ToText(new Uint8Array(await file.arrayBuffer()));setCurrent('free');setTextState(imported.text);setFreeCode(imported.text);setAssets(imported.assetStore);setFreeAssets(imported.assetStore);setFileName(file.name);setFreeFileName(file.name);setBlockDirty(false);setWorkspaceKey(k=>k+1);setFeedback(null);setHint(false);
+    try{const bytes=new Uint8Array(await file.arrayBuffer());const imported=sb3ToText(bytes);setFreeOriginal(bytes.slice());setFreeImportNotes(imported.notes);setCurrent('free');setTextState(imported.text);setFreeCode(imported.text);setAssets(imported.assetStore);setFreeAssets(imported.assetStore);setFileName(file.name);setFreeFileName(file.name);setBlockDirty(false);setWorkspaceKey(k=>k+1);setFeedback(null);setHint(false);
       setNotice(imported.notes.length?t(`読み込んだよ。変換できなかった部分があるかも。元のファイルを残してね。 ${imported.notes.join(' / ')}`,`Opened with conversion warnings; keep the original file. Details (Japanese): ${imported.notes.join(' / ')}`):t('エディターに読み込んだよ。画像や音を残すには.sb3を保存してね。','Opened in the editor. Save an .sb3 to keep your images and sounds.'));
     }catch(e){setNotice(t(`読み込めなかったよ：${(e as Error).message}`,`Could not open the file: ${(e as Error).message}`));}
   };
@@ -112,7 +118,7 @@ export default function EducationApp() {
     <header className="edu-header">
       <div className="edu-brand"><span className="edu-brand-logo"><IconLogo size={25}/></span><div><strong>ScratchPy</strong><span>EDUCATION</span></div></div>
       <div className="edu-header-divider"/><span className="edu-header-tagline">{t('ブロックから、コードの世界へ。','From blocks to code.')}</span>
-      <div className="edu-header-spacer"/><EditionMenu/><span className="edu-language">{EN?'EN':'日本語'}</span>
+      <div className="edu-header-spacer"/><button className="edu-head-button edu-ai-jump" onClick={()=>supportRef.current?.scrollIntoView({behavior:'smooth',block:'start'})}>{t('AI相談','AI help')}</button><EditionMenu/><span className="edu-language">{EN?'EN':'日本語'}</span>
       <button className="edu-head-button" onClick={()=>setGuide(true)}><IconBook size={17}/> {t('使い方','Guide')}</button>
       <button className="edu-head-button" onClick={()=>fileRef.current?.click()}><IconFolderOpen size={17}/> {t('ひらく','Open')}</button>
       <input ref={fileRef} type="file" accept=".sb3,application/octet-stream" hidden onChange={upload}/>
@@ -132,6 +138,7 @@ export default function EducationApp() {
       <main className="edu-main" ref={mainRef}>
         <div className="edu-page-top"><div><div className="edu-page-eyebrow">{lesson?`LESSON ${String(index+1).padStart(2,'0')} / ${String(lessons.length).padStart(2,'0')}`:'CREATIVE SPACE'}</div><h1>{lesson?lesson.title:t('エディター','Editor')}</h1><p>{lesson?phase==='learn'?t('まずは講習で学ぼう。','Start by learning the idea.'):t('おだいを読んで、コードを書きかえてみよう。','Read the mission, then change the code.') : t('ブロックとコードを使って、自由に作品をつくろう。','Create your own project with blocks and code.')}</p></div>{(!lesson || phase==='practice') && <button className="edu-reset" onClick={reset}><IconRefresh size={16}/> {t('はじめにもどす','Reset')}</button>}</div>
         {lesson && <div className="edu-lesson-steps" aria-label={t('レッスンの流れ','Lesson steps')}><span className={phase==='learn'?'active':'done'}><b>1</b>{t('講習','Learn')}</span><i/><span className={phase==='practice'?'active':''}><b>2</b>{t('課題','Challenge')}</span>{phase==='practice'&&<button onClick={()=>{setPhase('learn');setHint(false);}}><IconBook size={15}/> {t('講習にもどる','Review lesson')}</button>}</div>}
+        {lesson && phase==='learn' && <div className="edu-lecture-player"><ScratchPlayer text={text} assets={assets} blockDirty={blockDirty}/></div>}
         {lesson && phase==='learn' ? <LecturePage key={lesson.id} lesson={lesson} index={index} onPractice={()=>setPhase('practice')}/> : <>
         {lesson && <section className="edu-mission" aria-label={t('おだい','Mission')}><div className="edu-mission-icon"><IconCheckCircle size={22}/></div><div className="edu-mission-text"><span>{t('きょうのおだい','YOUR MISSION')}</span><strong>{lesson.goal}</strong></div><button className="edu-mobile-hint" aria-expanded={hint} onClick={()=>setHint(h=>!h)}><IconLightbulb size={16}/>{t('ヒント','Hint')}</button><button className="edu-primary edu-check" onClick={check}>{t('こたえをチェック','Check answer')} <IconArrowRight size={17}/></button></section>}
         {lesson && hint && <div className="edu-mobile-hint-text">{lesson.hint}</div>}
@@ -140,13 +147,15 @@ export default function EducationApp() {
         <div className="edu-workspace">
           <section className="edu-work-card edu-block-card"><div className="edu-card-head"><span className="edu-card-icon purple"><IconPuzzle size={20}/></span><div><h2>{t('ブロック','Blocks')}</h2><p>{lesson?t('コードから自動で表示・見るだけ','A read-only view of your code'):t('ドラッグして組み立てよう','Drag and connect blocks')}</p></div><span className="edu-card-label">{lesson?t('見るだけ','VIEW ONLY'):'BLOCKS'}</span></div><BlocklyPanel key={workspaceKey} education readOnly={!!lesson} text={text} dark={false} active={true} onTextChange={updateText} onDirtyChange={setBlockDirty}/></section>
           <section className="edu-work-card edu-code-card"><div className="edu-card-head"><span className="edu-card-icon blue"><IconCode size={20}/></span><div><h2>{t('コード','Code')}</h2><p>{lesson?t('ここを書きかえて、おだいに挑戦','Edit here to solve the mission'):t('コードを直接編集できるよ','You can edit the code directly')}</p></div><span className="edu-card-label">SCRATCHPY</span></div><div className="edu-editor"><Editor ref={editorRef} value={text} onChange={updateText} onCursor={setCursor} dragging={false}/></div><div className="edu-code-status"><span className={`edu-code-dot ${errors.length?'bad':''}`}/>{errors.length?t(`${errors.length}件のエラー` ,`${errors.length} error(s)`):t('コードをチェック済み','Code checked')}<span className="edu-code-pos">{t(`${cursor.line} 行目`,`Line ${cursor.line}`)}</span></div></section>
+          <div className="edu-runtime-card"><ScratchPlayer text={text} assets={assets} blockDirty={blockDirty} original={lesson ? null : freeOriginal} hasConversionWarnings={!lesson && freeImportNotes.length>0}/></div>
         </div>
         <div className="edu-tip-strip"><IconLightbulb size={19}/><p>{lesson?t('コードの形をチェックします（実行はしません）。ブロックは参考として表示されます。','Checks inspect code structure; they do not run the project. Blocks are shown for reference.'):t('ブロックを変えたら「コードに反映」。コードとブロックを見比べてみよう。','After editing blocks, select “Apply to code” and compare the two views.')}</p></div>
         <p className="edu-save-note">{lesson?t('レッスンのコードとクリア状況は、このブラウザに保存されます。','Lesson code and progress are saved in this browser.'):t('エディターの作品は一時保存です。大切な作品は .sb3 で保存しよう。','Editor projects are temporary. Save your work as an .sb3 file.')}</p>
         </>}
       </main>
-      <aside className="edu-coach">
-        {lesson && phase==='learn' ? <><div className="edu-coach-title"><span className="edu-kicker">YOUR LEARNING GUIDE</span><h2>{t('学習の進めかた','How to learn')}</h2></div><div className="edu-buddy-card"><div><strong>{t('まずは読んでみよう！','Let’s learn first!')}</strong><p>{t('ポイントとコードの例を読んだら、下のボタンから課題へ進もう。','Read the key points and examples, then use the button below to start the challenge.')}</p></div><Buddy/></div><div className="edu-editor-steps"><div><b>1</b><span>{t('講習でポイントを知る','Learn the key ideas')}</span></div><div><b>2</b><span>{t('コードを編集して挑戦','Edit the code and try')}</span></div><div><b>3</b><span>{t('こたえをチェック','Check your answer')}</span></div></div><div className="edu-concept"><h3>{t('Python とのちがい','About Python')}</h3><p>{t('ScratchPy は Python 風の別の言語です。Python の参考例は比較用で、ここでは実行できません。','ScratchPy is a separate Python-like language. Python examples are for comparison and cannot run here.')}</p></div></> : lesson ? <><div className="edu-coach-title"><span className="edu-kicker">YOUR LEARNING GUIDE</span><h2>{t('こまったときは','Your learning guide')}</h2></div><div className="edu-buddy-card"><div><strong>{t('いっしょにやってみよう！','Let’s learn together!')}</strong><p>{t('おだいを読んで、右のコードをかえてみよう。','Read the mission and try editing the code.')}</p></div><Buddy/></div><div className="edu-hint-card"><button onClick={()=>setHint(h=>!h)} aria-expanded={hint}><span className="edu-hint-icon"><IconLightbulb size={20}/></span><span><strong>{t('ヒントを見る','Show a hint')}</strong><small>{t('わからないときはここ！','A little help when you need it')}</small></span><IconChevronRight size={17}/></button>{hint&&<p>{lesson.hint}</p>}</div><div className="edu-concept"><span className="edu-kicker">CODE NOTE</span><h3>{t('コードのひみつ','Code explained')} <span>{lesson.concept}</span></h3><p>{lesson.explanation}</p><pre>{lesson.example}</pre></div></> : <><div className="edu-coach-title"><span className="edu-kicker">CREATIVE SPACE</span><h2>{t('つくりかた','Make something!')}</h2></div><div className="edu-buddy-card"><div><strong>{t('自由につくろう！','Make it your own!')}</strong><p>{t('ブロックをつないで、コードの変化を見てみよう。','Connect blocks and see how the code changes.')}</p></div><Buddy/></div><div className="edu-editor-steps"><div><b>1</b><span>{t('ブロックをつなぐ','Connect blocks')}</span></div><div><b>2</b><span>{t('「コードに反映」を押す','Select “Apply to code”')}</span></div><div><b>3</b><span>{t('.sb3を保存してScratchで開く','Save .sb3 and open in Scratch')}</span></div></div><button className="edu-outline" onClick={()=>setGuide(true)}><IconBook size={17}/> {t('使い方を見る','Open the guide')}</button><div className="edu-concept"><h3>{t('Scratchで動かそう','Run it in Scratch')}</h3><p>{t('ここでは作品を実行できません。保存した .sb3 をScratchに読み込んで動かしてね。','Projects do not run here. Save an .sb3 and open it in Scratch to run it.')}</p></div></>}
+      <aside className="edu-coach" ref={supportRef}>
+        <EducationAssistant code={text} diagnostics={errors.map(d=>`${d.loc ? `${d.loc.line}: ` : ''}${d.message}`)} blockDirty={blockDirty} lessonTitle={lesson?.title ?? t('自由エディター','Free editor')} goal={lesson?.goal ?? ''} phase={lesson ? phase : 'free'}/>
+        {lesson && phase==='learn' ? <><div className="edu-coach-title"><span className="edu-kicker">YOUR LEARNING GUIDE</span><h2>{t('学習の進めかた','How to learn')}</h2></div><div className="edu-buddy-card"><div><strong>{t('まずは読んでみよう！','Let’s learn first!')}</strong><p>{t('ポイントとコードの例を読んだら、下のボタンから課題へ進もう。','Read the key points and examples, then use the button below to start the challenge.')}</p></div><Buddy/></div><div className="edu-editor-steps"><div><b>1</b><span>{t('講習でポイントを知る','Learn the key ideas')}</span></div><div><b>2</b><span>{t('コードを編集して挑戦','Edit the code and try')}</span></div><div><b>3</b><span>{t('こたえをチェック','Check your answer')}</span></div></div><div className="edu-concept"><h3>{t('Python とのちがい','About Python')}</h3><p>{t('ScratchPy は Python 風の別の言語です。Python の参考例は比較用で、ここでは実行できません。','ScratchPy is a separate Python-like language. Python examples are for comparison and cannot run here.')}</p></div></> : lesson ? <><div className="edu-coach-title"><span className="edu-kicker">YOUR LEARNING GUIDE</span><h2>{t('こまったときは','Your learning guide')}</h2></div><div className="edu-buddy-card"><div><strong>{t('いっしょにやってみよう！','Let’s learn together!')}</strong><p>{t('おだいを読んで、右のコードをかえてみよう。','Read the mission and try editing the code.')}</p></div><Buddy/></div><div className="edu-hint-card"><button onClick={()=>setHint(h=>!h)} aria-expanded={hint}><span className="edu-hint-icon"><IconLightbulb size={20}/></span><span><strong>{t('ヒントを見る','Show a hint')}</strong><small>{t('わからないときはここ！','A little help when you need it')}</small></span><IconChevronRight size={17}/></button>{hint&&<p>{lesson.hint}</p>}</div><div className="edu-concept"><span className="edu-kicker">CODE NOTE</span><h3>{t('コードのひみつ','Code explained')} <span>{lesson.concept}</span></h3><p>{lesson.explanation}</p><pre>{lesson.example}</pre></div></> : <><div className="edu-coach-title"><span className="edu-kicker">CREATIVE SPACE</span><h2>{t('つくりかた','Make something!')}</h2></div><div className="edu-buddy-card"><div><strong>{t('自由につくろう！','Make it your own!')}</strong><p>{t('ブロックをつないで、コードの変化を見てみよう。','Connect blocks and see how the code changes.')}</p></div><Buddy/></div><div className="edu-editor-steps"><div><b>1</b><span>{t('ブロックをつなぐ','Connect blocks')}</span></div><div><b>2</b><span>{t('「コードに反映」を押す','Select “Apply to code”')}</span></div><div><b>3</b><span>{t('.sb3を保存してScratchで開く','Save .sb3 and open in Scratch')}</span></div></div><button className="edu-outline" onClick={()=>setGuide(true)}><IconBook size={17}/> {t('使い方を見る','Open the guide')}</button><div className="edu-concept"><h3>{t('Scratchで動かそう','Run it in Scratch')}</h3><p>{t('「実行」で作品を試そう。保存した .sb3 をScratchで動かすこともできるよ。','Use Run to try your project, or save an .sb3 and open it in Scratch.')}</p></div></>}
         {(!lesson || phase==='practice') && errors.length>0 && <div className="edu-errors"><strong>{t('コードを見直そう','Check your code')}</strong>{EN&&<p>Detailed diagnostics are in Japanese.</p>}{errors.slice(0,3).map((d,i)=><button key={i} onClick={()=>d.loc&&editorRef.current?.jumpTo(d.loc.line)}>{d.loc&&t(`${d.loc.line}行目：`,`Line ${d.loc.line}: `)}{d.message}</button>)}</div>}
       </aside>
     </div>

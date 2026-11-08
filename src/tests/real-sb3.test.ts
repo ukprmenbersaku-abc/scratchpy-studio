@@ -201,3 +201,104 @@ describe('実 .sb3 ファイル: ラウンドトリップ (sb3→text→sb3)', (
     expect(reloaded.files.size).toBe(out.assets.size);
   });
 });
+
+describe('クラウド変数の数値文字列', () => {
+  it('実フィクスチャの100を数値型でインポートし、クラウドとして再エクスポートする', () => {
+    const imported = sb3ToText(readSb3('cloud_variables_simple.sb3'));
+    expect(imported.text).toMatch(/var firstCloud: int = 100 @cloud/);
+    expect(analyzeText(imported.text).diagnostics.filter(d => d.severity === 'error')).toEqual([]);
+    const out = textToSb3(imported.text, imported.assetStore);
+    const variables = Object.values(out.project.targets.find(t => t.isStage)!.variables);
+    expect(variables).toContainEqual(['☁ firstCloud', '100', true]);
+    const roundtrip = sb3ToText(out.bytes);
+    expect(roundtrip.text).toMatch(/var firstCloud: int = 100 @cloud/);
+  });
+  it('小数と負数を適切な数値型で読み込む', () => {
+    const orig = loadSb3(readSb3('cloud_variables_simple.sb3')).project;
+    const stage = orig.targets.find(t=>t.isStage)!;
+    stage.variables = { a:['☁ decimal','-2.5',true], b:['☁ integer','-30',true], c:['☁ fraction','1e-2',true] };
+    const imp = importProject(orig); const text = printProgram(imp.program);
+    expect(text).toContain('var decimal: float = -2.5 @cloud');
+    expect(text).toContain('var integer: int = -30 @cloud');
+    expect(text).toContain('var fraction: float = 0.01 @cloud');
+    expect(analyzeText(text).diagnostics.filter(d=>d.severity==='error')).toEqual([]);
+    expect(imp.notes.join('\n')).toContain('正規化');
+  });
+  it('非数値や安全な整数範囲外は黙って壊さず、警告と型エラーにする', () => {
+    const orig = loadSb3(readSb3('cloud_variables_simple.sb3')).project;
+    orig.targets.find(t=>t.isStage)!.variables = { a:['☁ invalid','not-a-number',true], b:['☁ huge','9007199254740993',true] };
+    const imp = importProject(orig); const text = printProgram(imp.program);
+    expect(text).toContain('9007199254740993'); expect(text).toContain('not-a-number');
+    expect(imp.notes.join('\n')).toContain('安全に数値へ変換できません');
+    expect(analyzeText(text).diagnostics.filter(d=>d.severity==='error').length).toBeGreaterThan(0);
+  });
+});
+
+describe('追加した Scratch ブロックの相互変換', () => {
+  const code=`stage:
+    costume backdrop1
+    on flag:
+        switch_backdrop_and_wait("backdrop1")
+        set_tempo(90)
+        change_tempo(5)
+        set_instrument(1)
+        set_midi_instrument(2)
+        play_note(60, 0.25)
+        rest_beats(0.5)
+        play_drum(1, 0.25)
+        play_midi_drum(2, 0.5)
+`;
+  it('背景切替待ちと全8種の音楽命令をエクスポートし再インポートする', () => {
+    const out=textToSb3(code); const blocks=countOpcodes(out.project);
+    for (const opcode of ['looks_switchbackdroptoandwait','music_setTempo','music_changeTempo','music_setInstrument','music_midiSetInstrument','music_playNoteForBeats','music_restForBeats','music_playDrumForBeats','music_midiPlayDrumForBeats']) expect(blocks[opcode],opcode).toBe(1);
+    expect(out.project.extensions).toContain('music');
+    const imported=sb3ToText(out.bytes);
+    expect(imported.unsupportedOpcodes).toEqual({});
+    const out2=textToSb3(imported.text,imported.assetStore);
+    expect(countOpcodes(out2.project)).toEqual(blocks);
+  });
+  it('Scratchの楽器・ドラムのメニューshadowを数値として取り込む', () => {
+    const out=textToSb3(code);const stage=out.project.targets[0];
+    const drum=Object.values(stage.blocks).find(b=>b.opcode==='music_playDrumForBeats')!;
+    stage.blocks.musicMenu={opcode:'music_menu_DRUM',next:null,parent:Object.entries(stage.blocks).find(([,v])=>v===drum)![0],inputs:{},fields:{DRUM:['4',null]},shadow:true,topLevel:false};
+    drum.inputs.DRUM=[1,'musicMenu'];
+    const imported=importProject(out.project);const text=printProgram(imported.program);
+    expect(text).toContain('play_drum(4, 0.25)');expect(imported.unsupportedOpcodes).toEqual({});
+    expect(analyzeText(text).diagnostics.filter(d=>d.severity==='error')).toEqual([]);
+  });
+});
+
+describe('フィクスチャ全件の出力可否', () => {
+  for(const f of files) it(`${f}: 構文・型検査を通して .sb3 を生成`, () => {
+    const imported=sb3ToText(readSb3(f));
+    expect(analyzeText(imported.text).diagnostics.filter(d=>d.severity==='error'), imported.text).toEqual([]);
+    const out=textToSb3(imported.text,imported.assetStore);
+    expect(out.bytes.length).toBeGreaterThan(0);
+  });
+  it('レポータを接続した動的メニューは黙って誤変換せず警告する', () => {
+    const out=textToSb3('stage:\n    on flag:\n        switch_backdrop("backdrop1")\n');
+    const stage=out.project.targets[0];
+    const [blockId, block]=Object.entries(stage.blocks).find(([,b])=>b.opcode==='looks_switchbackdropto')!;
+    const shadow=block.inputs.BACKDROP[1] as string;
+    stage.blocks.expr={opcode:'operator_join',next:null,parent:blockId,inputs:{STRING1:[1,[10,'backdrop']],STRING2:[1,[10,'1']]},fields:{},shadow:false,topLevel:false};
+    block.inputs.BACKDROP=[3,'expr',shadow];
+    const imported=importProject(out.project);expect(imported.notes.join('\n')).toContain('動的な値');
+    expect(imported.unsupportedOpcodes['looks_switchbackdropto(動的メニュー:BACKDROP)']).toBe(1);
+  });
+});
+
+describe('Scratch リストの項目番号', () => {
+  it('item_number と len のリスト引数を型検査し、項目番号ブロックを往復する', () => {
+    const code=`stage:
+    list items: list[str] = ["apple", "banana"]
+    var position: int = 0
+    on flag:
+        position = item_number(items, "banana")
+        position += len(items)
+`;
+    const first=textToSb3(code);expect(countOpcodes(first.project).data_itemnumoflist).toBe(1);
+    const imp=sb3ToText(first.bytes);expect(imp.text).toContain('item_number(items, "banana")');
+    const second=textToSb3(imp.text,imp.assetStore);expect(countOpcodes(second.project).data_itemnumoflist).toBe(1);
+    expect(analyzeText(imp.text).diagnostics.filter(d=>d.severity==='error')).toEqual([]);
+  });
+});

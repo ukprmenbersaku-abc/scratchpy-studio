@@ -223,7 +223,7 @@ def jump(times: int, shout: bool):     →  proccode: "jump %s %b"
 | `list` + visible | リストの `@show` |
 | visible: false | (アノテーションなし = @hide) |
 
-- クラウド変数(`variables` の第 3 要素 true)→ `@cloud`(名前の `"☁ "` は除去)。
+- クラウド変数(`variables` の第 3 要素 true または名前が `☁ ` で始まる)→ `@cloud`(名前の接頭辞は除去)。数値文字列も int/float として読み込み、書き出し時は Scratch 形式の文字列値に戻す。表記の正規化は警告し、非数値・安全に変換できない巨大整数は元の文字列を残して型エラーにする。
 - 変数/リスト以外のモニター(sensing_timer 等の**値モニター**)は変換対象外 → note に記録して無視。
 
 ---
@@ -309,3 +309,13 @@ def jump(times: int, shout: bool):     →  proccode: "jump %s %b"
 ---
 
 *変換の実装詳細は `docs/04-architecture.md` を参照してください。*
+
+
+## 追加対応ブロックと残る制限
+
+`looks_switchbackdroptoandwait` は `switch_backdrop_and_wait(name)`、music 拡張の `playDrumForBeats`, `midiPlayDrumForBeats`, `restForBeats`, `playNoteForBeats`, `setInstrument`, `midiSetInstrument`, `setTempo`, `changeTempo` は対応する `play_drum`, `play_midi_drum`, `rest_beats`, `play_note`, `set_instrument`, `set_midi_instrument`, `set_tempo`, `change_tempo` に変換される。Scratch の楽器/ドラムのメニュー shadow も読み込む。
+
+すべての Scratch / TurboWarp / サードパーティ拡張が対応済みではない。未知の opcode、動的なメニュー値、孤立ブロックやコメント等は欠落または代替値となる場合がある。読み込みログと出力前の警告を確認し、元ファイルを保存すること。「元の .sb3」を選んだ実行は変換前のデータを使用するが、セキュリティ上外部拡張や通信は使えない。
+
+
+`data_itemnumoflist` ⇔ `item_number(list_name, item)`（最初の位置、1始まり。見つからなければ0）。`data_lengthoflist` ⇔ `len(list_name)`。

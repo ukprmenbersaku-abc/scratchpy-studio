@@ -30,7 +30,7 @@ if (!available) {
   process.exit(1);
 }
 let dependenciesReady = existsSync(vite);
-for (const name of ['react', 'react-dom', 'react-markdown', 'blockly', 'typescript']) {
+for (const name of ['react', 'react-dom', 'react-markdown', 'blockly', 'typescript', '@turbowarp/scaffolding/with-music']) {
   try { require.resolve(name); } catch { dependenciesReady = false; }
 }
 if (!dependenciesReady) {

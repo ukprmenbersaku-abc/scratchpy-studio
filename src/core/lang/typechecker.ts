@@ -875,10 +875,22 @@ class Checker {
     // len() オーバーロード
     if (name === 'len') {
       if (e.args.length !== 1) { this.err('len() の引数は1個です', e.loc); return T_INT; }
-      const t = this.checkExpr(e.args[0]);
+      const arg=e.args[0];
+      const list=(arg.type==='name'||arg.type==='listref') ? this.lookupList(arg.name) : null;
+      if (list) { this.resolutions.set(arg,list); (arg as {spType?:SPType}).spType=list.decl.varType; }
+      const t = list ? list.decl.varType : this.checkExpr(arg);
       if (t.kind !== 'str' && t.kind !== 'list' && t.kind !== 'any') {
         this.err(`len() は文字列またはリストに使えます (実際: ${typeToString(t)})`, e.loc);
       }
+      return T_INT;
+    }
+    if (name === 'item_number') {
+      if (e.args.length !== 2) { this.err('item_number() はリストと項目の2引数が必要です', e.loc); return T_INT; }
+      const arg=e.args[0];
+      const list=(arg.type==='name'||arg.type==='listref') ? this.lookupList(arg.name) : null;
+      if (!list) this.err('item_number() の第1引数はリスト名です',arg.loc);
+      else { this.resolutions.set(arg,list); (arg as {spType?:SPType}).spType=list.decl.varType; }
+      this.checkExpr(e.args[1]);
       return T_INT;
     }
     const b = BUILTINS[name];

@@ -59,3 +59,17 @@
 .education .edu-lecture-action { display:flex; align-items:center; justify-content:space-between; gap:15px; padding:20px; margin-top:14px; border:1px solid #a4d9b8; border-radius:14px; background:#e9f9ef; }.education .edu-lecture-action strong { font-size:14px; color:#2d7650; }.education .edu-lecture-action p { margin:5px 0 0; color:#538469; font-size:11px; line-height:1.6; }.education .edu-lecture-action .edu-primary { background:#2eaa69; box-shadow:0 3px 0 #218a53; }.education .edu-lecture-action .edu-primary:hover { background:#238f58; }
 @media(max-width:700px) { .education .edu-lecture-points { grid-template-columns:1fr; }.education .edu-lecture-section { padding:16px; }.education .edu-lecture-hero { padding:17px; }.education .edu-lecture-hero-icon { width:43px; height:43px; border-radius:13px; }.education .edu-lecture-hero-icon svg { width:23px; }.education .edu-lecture-hero h2 { font-size:18px; }.education .edu-lecture-action { flex-direction:column; align-items:stretch; }.education .edu-lecture-action .edu-primary { width:100%; }.education .edu-example-card>div span { max-width:60%; text-align:right; } }
 .education .edu-python-quiz { border-color:#bee1c8; }.education .edu-python-quiz .edu-lecture-heading>span { background:#dff5e6; color:#2b8952; }.education .edu-quiz-choices { border:0; padding:0; margin:16px 0 0; display:flex; flex-wrap:wrap; gap:9px; }.education .edu-quiz-choices legend { float:left; width:100%; padding:0 0 10px; color:#304663; font-weight:800; font-size:13px; }.education .edu-quiz-choices button { display:flex; align-items:center; gap:8px; padding:8px 12px; border:1px solid #c8d8eb; border-radius:9px; background:#fff; color:#354e6f; font-weight:700; font-size:12px; }.education .edu-quiz-choices button span { display:grid; place-items:center; width:23px; height:23px; border-radius:7px; background:#e7effb; color:#4773b0; font-size:11px; }.education .edu-quiz-choices button:hover { border-color:#5894df; background:#eff6ff; }.education .edu-quiz-choices button.correct { border-color:#35a566; background:#e6f8ed; }.education .edu-quiz-choices button.incorrect { border-color:#e2ad52; background:#fff5df; }.education .edu-quiz-feedback { margin-top:11px; padding:11px 13px; border-radius:9px; font-size:12px; font-weight:700; line-height:1.7; }.education .edu-quiz-feedback.correct { color:#237143; background:#e5f7eb; }.education .edu-quiz-feedback.retry { color:#895e17; background:#fff3d9; }
+/* Scratch stage alongside code and blocks, with a single-column fallback. */
+.education .edu-lecture-player { float:right; width:min(35%,300px); margin:0 0 14px 14px; }
+.education .edu-runtime-card { min-width:0; }
+@media(min-width:1201px) {
+  .education .edu-workspace { grid-template-columns:minmax(210px,1fr) minmax(190px,.9fr) minmax(210px,.85fr); height:auto; min-height:390px; align-items:start; }
+  .education .edu-work-card { height:clamp(390px,calc(100vh - 400px),720px); }
+  .education.edu-mode-editor .edu-work-card { height:clamp(450px,calc(100vh - 255px),800px); }
+}
+@media(min-width:651px) and (max-width:1200px) {
+  .education .edu-workspace,.education.edu-mode-editor .edu-workspace { height:auto; }
+  .education .edu-work-card { height:480px; }
+  .education .edu-runtime-card { grid-column:1/-1; width:min(100%,480px); }
+}
+@media(max-width:650px) { .education .edu-lecture-player { float:none; width:100%; margin:0 0 14px; }.education .edu-runtime-card { width:100%; } }

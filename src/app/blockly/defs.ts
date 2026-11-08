@@ -29,7 +29,7 @@ export const catOfOpcode = (op?: string): string => {
   if (!op) return 'other';
   if (op.startsWith('motion_')) return 'motion';
   if (op.startsWith('looks_')) return 'looks';
-  if (op.startsWith('sound_')) return 'sound';
+  if (op.startsWith('sound_') || op.startsWith('music_')) return 'sound';
   if (op.startsWith('event_')) return 'events';
   if (op.startsWith('control_')) return 'control';
   if (op.startsWith('sensing_')) return 'sensing';
@@ -77,13 +77,14 @@ export const LABELS: Record<string, string[]> = {
   think: ['{0} と考える', '{0} と {1} 秒考える'],
   show: ['表示する'], hide: ['隠す'],
   switch_costume: ['コスチュームを {0} にする'], next_costume: ['次のコスチュームにする'],
-  switch_backdrop: ['背景を {0} にする'], next_backdrop: ['次の背景にする'],
+  switch_backdrop_and_wait: ['背景を {0} にして待つ'], switch_backdrop: ['背景を {0} にする'], next_backdrop: ['次の背景にする'],
   change_size: ['大きさを {0} ずつ変える'], set_size: ['大きさを {0}% にする'],
   change_effect: ['{0} の効果を {1} ずつ変える'], set_effect: ['{0} の効果を {1} にする'],
   clear_effects: ['見た目の効果をなくす'],
   go_to_layer: ['{0} へ移動する'], change_layer: ['{0} に {1} 層ずらす'],
   play_sound: ['{0} の音を鳴らす'], play_sound_until_done: ['終わるまで {0} の音を鳴らす'],
   stop_all_sounds: ['すべての音を止める'],
+  play_drum: ['ドラム {0} を {1} 拍鳴らす'], play_midi_drum: ['MIDIドラム {0} を {1} 拍鳴らす'], rest_beats: ['{0} 拍休む'], play_note: ['音符 {0} を {1} 拍鳴らす'], set_instrument: ['楽器を {0} にする'], set_midi_instrument: ['MIDI楽器を {0} にする'], set_tempo: ['テンポを {0} にする'], change_tempo: ['テンポを {0} ずつ変える'],
   change_volume: ['音量を {0} ずつ変える'], set_volume: ['音量を {0}% にする'],
   change_sound_effect: ['音の {0} 効果を {1} ずつ変える'], set_sound_effect: ['音の {0} 効果を {1} にする'],
   clear_sound_effects: ['音の効果をなくす'],
@@ -103,7 +104,7 @@ export const LABELS: Record<string, string[]> = {
   asin: ['{0} の asin'], acos: ['{0} の acos'], atan: ['{0} の atan'],
   ln: ['{0} の自然対数'], log10: ['{0} の常用対数'], exp: ['e ^ {0}'], pow10: ['10 ^ {0}'],
   mod: ['{0} ÷ {1} の余り'], letter: ['{1} の {0} 番目の文字'], join: ['{0} と {1}'],
-  len: ['{0} の長さ'],
+  len: ['{0} の長さ'], item_number: ['{0} の中で {1} が最初にある位置'],
   pen_down: ['ペンを下ろす'], pen_up: ['ペンを上げる'], stamp: ['スタンプ'], clear_pen: ['全部消す'],
   set_pen_color: ['ペンの色を {0} にする'],
   change_pen_param: ['ペンの {0} を {1} ずつ変える'], set_pen_param: ['ペンの {0} を {1} にする'],
@@ -118,12 +119,14 @@ const EN_LABELS: Record<string, string[]> = {
   point: ['point in direction {0}'], point_towards: ['point towards {0}'], change_x: ['change x by {0}'], set_x: ['set x to {0}'], change_y: ['change y by {0}'], set_y: ['set y to {0}'],
   bounce: ['if on edge, bounce'], set_rotation_style: ['set rotation style {0}'],
   say: ['say {0}', 'say {0} for {1} seconds'], think: ['think {0}', 'think {0} for {1} seconds'], show: ['show'], hide: ['hide'],
+  switch_backdrop_and_wait: ['switch backdrop to {0} and wait'], play_drum: ['play drum {0} for {1} beats'], play_midi_drum: ['play MIDI drum {0} for {1} beats'], rest_beats: ['rest {0} beats'], play_note: ['play note {0} for {1} beats'], set_instrument: ['set instrument to {0}'], set_midi_instrument: ['set MIDI instrument to {0}'], set_tempo: ['set tempo to {0}'], change_tempo: ['change tempo by {0}'],
   switch_costume: ['switch costume to {0}'], next_costume: ['next costume'], switch_backdrop: ['switch backdrop to {0}'], next_backdrop: ['next backdrop'],
   change_size: ['change size by {0}'], set_size: ['set size to {0}%'], change_effect: ['change {0} effect by {1}'], set_effect: ['set {0} effect to {1}'], clear_effects: ['clear visual effects'],
   play_sound: ['start sound {0}'], play_sound_until_done: ['play sound {0} until done'], stop_all_sounds: ['stop all sounds'],
   broadcast: ['broadcast {0}'], broadcast_and_wait: ['broadcast {0} and wait'], wait: ['wait {0} seconds'], wait_until: ['wait until {0}'], stop: ['stop {0}'],
   create_clone: ['create clone of myself', 'create clone of {0}'], delete_clone: ['delete this clone'], ask: ['ask {0} and wait'], reset_timer: ['reset timer'],
   touching: ['touching {0}?'], touching_color: ['touching color {0}?'], color_touching_color: ['color {0} touching {1}?'], distance_to: ['distance to {0}'], key_pressed: ['key {0} pressed?'],
+  item_number: ['item number of {1} in {0}'],
   random: ['pick random {0} to {1}'], join: ['join {0} {1}'], len: ['length of {0}'], current: ['current {0}'], current_of: ['current {0}'],
 };
 const BLOCK_WORDS: Record<string,string> = {

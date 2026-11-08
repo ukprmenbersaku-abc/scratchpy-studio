@@ -35,3 +35,22 @@ describe('Blockly 安全性', () => {
   expect(() => workspaceToAst(ws)).toThrow('直下には置けません'); ws.dispose();
  });
 });
+
+describe('追加ブロックの Blockly 往復', () => {
+  it('音楽・背景待ち・リスト項目番号を損失なく表示できる', () => {
+    const src=`stage:
+    list items: list[str] = ["a", "b"]
+    var n: int = 0
+    on flag:
+        switch_backdrop_and_wait("backdrop1")
+        set_tempo(120)
+        play_note(60, 0.25)
+        n = item_number(items, "b")
+`;
+    const analysis=analyzeText(src);
+    expect(analysis.diagnostics.filter(d=>d.severity==='error')).toEqual([]);
+    const ws=new Blockly.Workspace();
+    try { astToWorkspace(ws,analysis.program!,analysis.checkResult?.resolutions);expect(printProgram(workspaceToAst(ws))).toBe(printProgram(analysis.program!)); }
+    finally { ws.dispose(); }
+  });
+});

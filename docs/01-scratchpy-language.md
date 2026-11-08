@@ -496,7 +496,7 @@ if key_pressed("space"):  # (関数)
 | `think(msg)` / `think(msg, secs)` | と考える | 🅢 |
 | `show()` / `hide()` | 表示する/隠す(引数 1 つで変数・リストモニター) | 🅢 |
 | `switch_costume(name)` / `next_costume()` | コスチュームを〜にする/次にする | 🅢 |
-| `switch_backdrop(name)` / `next_backdrop()` | 背景を〜にする/次にする | 🅢🅣 |
+| `switch_backdrop(name)` / `switch_backdrop_and_wait(name)` / `next_backdrop()` | 背景を切替 / 切替えて待つ / 次にする | 🅢🅣 |
 | `change_size(n)` / `set_size(n)` | 大きさを変える/にする | 🅢 |
 | `change_effect(effect, n)` / `set_effect(effect, n)` | 効果を〜ずつ変える/にする | 🅢🅣 |
 | `clear_effects()` | 見た目の効果をなくす | 🅢🅣 |
@@ -696,3 +696,11 @@ sprite Timer:
 ---
 
 *この仕様は実装(`src/core/lang/`)と常に一致させています。差分を見つけた場合は実装が正です。*
+
+
+### 音楽拡張（Scratch music）
+
+`play_drum(drum, beats)`、`play_midi_drum(drum, beats)`、`rest_beats(beats)`、`play_note(note, beats)`、`set_instrument(instrument)`、`set_midi_instrument(instrument)`、`set_tempo(tempo)`、`change_tempo(tempo)` は数値引数を取り、Scratch music 拡張へ変換します。プロジェクトの extensions に `music` が追加されます。テンポの取得には `tempo` を使います。
+
+
+`item_number(items, item)` は Scratch の「リスト中の項目の位置」を返します。最初の一致は 1 始まり、見つからない場合は 0 です。`len(items)` はリストの長さを返します。

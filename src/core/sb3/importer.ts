@@ -166,7 +166,7 @@ class Importer {
         if (name.startsWith('☁ ')) name = name.slice(2);
         const meta: VarMeta = {
           id, name, cloud, owner: t.name, isStage: t.isStage,
-          numeric: false, hasDecimal: false, boolish: false,
+          numeric: cloud, hasDecimal: false, boolish: false,
         };
         this.varMeta.set(id, meta);
         this.varMetaByName.set(`${t.name}\u0000${name}`, meta);
@@ -227,7 +227,7 @@ class Importer {
         if (typeof v === 'number') { meta.numeric = true; if (!Number.isInteger(v)) meta.hasDecimal = true; }
         else if (typeof v === 'boolean') { meta.boolish = true; }
         else if (typeof v === 'string') {
-          if (/^-?\d+\.\d+$/.test(v)) { meta.hasDecimal = true; }
+          if (/^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(v.trim()) && Number.isFinite(Number(v)) && !Number.isInteger(Number(v))) { meta.hasDecimal = true; }
         }
       }
     }
@@ -360,12 +360,14 @@ class Importer {
         const s = String(raw);
         if (vtype.kind === 'int' || vtype.kind === 'float') {
           const trimmed = s.trim();
-          if (trimmed === '' || /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(trimmed)) {
+          if ((trimmed === '' || /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(trimmed)) && Number.isFinite(Number(trimmed)) && (!meta.cloud || !Number.isInteger(Number(trimmed)) || Number.isSafeInteger(Number(trimmed)))) {
             init = num(Number(trimmed));
+            if (meta.cloud && s !== String(Number(trimmed))) this.notes.push(`クラウド変数「${meta.name}」の初期値「${s}」は数値として「${Number(trimmed)}」に正規化されます`);
           } else {
             // 数値として使われているが今は文字列を保持 → 静的型では any に広げる
             init = str(s);
             vtype = T_ANY;
+            if (meta.cloud) this.notes.push(`クラウド変数「${meta.name}」の初期値は安全に数値へ変換できません。元の値を保持するため、書き出し前に修正が必要です`);
           }
         } else {
           init = str(s);
@@ -603,6 +605,7 @@ class Importer {
       case 'looks_switchcostumeto': return call('switch_costume', [this.menuExpr(t, b, 'COSTUME', 'looks_costume')]);
       case 'looks_nextcostume': return call('next_costume', []);
       case 'looks_switchbackdropto': return call('switch_backdrop', [this.menuExpr(t, b, 'BACKDROP', 'looks_backdrops')]);
+      case 'looks_switchbackdroptoandwait': return call('switch_backdrop_and_wait', [this.menuExpr(t, b, 'BACKDROP', 'looks_backdrops')]);
       case 'looks_nextbackdrop': return call('next_backdrop', []);
       case 'looks_changesizeby': return call('change_size', [this.inputExpr(b.inputs?.CHANGE, 'num')]);
       case 'looks_setsizeto': return call('set_size', [this.inputExpr(b.inputs?.SIZE, 'num')]);
@@ -695,6 +698,15 @@ class Importer {
           target: { type: 'index', obj: this.listTargetExpr(t, b.fields?.LIST), index: this.indexExpr(b.inputs?.INDEX) } as never,
           value: this.inputExpr(b.inputs?.ITEM, this.listSlotType(t, b.fields?.LIST)),
         };
+      // --- music extension ---
+      case 'music_playDrumForBeats': return call('play_drum', [this.inputExpr(b.inputs?.DRUM, 'num'), this.inputExpr(b.inputs?.BEATS, 'num')]);
+      case 'music_midiPlayDrumForBeats': return call('play_midi_drum', [this.inputExpr(b.inputs?.DRUM, 'num'), this.inputExpr(b.inputs?.BEATS, 'num')]);
+      case 'music_restForBeats': return call('rest_beats', [this.inputExpr(b.inputs?.BEATS, 'num')]);
+      case 'music_playNoteForBeats': return call('play_note', [this.inputExpr(b.inputs?.NOTE, 'num'), this.inputExpr(b.inputs?.BEATS, 'num')]);
+      case 'music_setInstrument': return call('set_instrument', [this.inputExpr(b.inputs?.INSTRUMENT, 'num')]);
+      case 'music_midiSetInstrument': return call('set_midi_instrument', [this.inputExpr(b.inputs?.INSTRUMENT, 'num')]);
+      case 'music_setTempo': return call('set_tempo', [this.inputExpr(b.inputs?.TEMPO, 'num')]);
+      case 'music_changeTempo': return call('change_tempo', [this.inputExpr(b.inputs?.TEMPO, 'num')]);
       // --- pen ---
       case 'pen_penDown': return call('pen_down', []);
       case 'pen_penUp': return call('pen_up', []);
@@ -862,6 +874,7 @@ class Importer {
       case 'math_positive_number': case 'math_whole_number': case 'math_integer': case 'math_angle':
         return numLit(parseFloat(String(this.shadowFieldOrInput(b))) || 0);
       case 'text': return str(String(this.shadowFieldOrInput(b)));
+      case 'music_menu_DRUM': case 'music_menu_INSTRUMENT': return numLit(Number(this.shadowFieldOrInput(b)) || 0);
       // プロパティ系
       default: break;
     }
@@ -908,6 +921,7 @@ class Importer {
         return { type: 'index', obj: listExpr, index: this.indexExpr(b.inputs?.INDEX) } as Expr;
       }
       case 'data_lengthoflist': return call('len', [this.listTargetExpr(this.currentTarget!, b.fields?.LIST)]);
+      case 'data_itemnumoflist': return call('item_number', [this.listTargetExpr(this.currentTarget!, b.fields?.LIST), this.inputExpr(b.inputs?.ITEM, 'any')]);
       case 'data_listcontainsitem':
         return bin('in', this.inputExpr(b.inputs?.ITEM, 'str'), this.listTargetExpr(this.currentTarget!, b.fields?.LIST));
       // --- sensing ---
@@ -1075,17 +1089,23 @@ class Importer {
     return this.menuStrRaw(b, inputName, menuOpcode);
   }
 
-  private menuStrRaw(b: SB3Block, inputName: string, _menuOpcode: string): string {
+  private menuStrRaw(b: SB3Block, inputName: string, menuOpcode: string): string {
     const input = b.inputs?.[inputName];
     if (input) {
       const val = input[1] as InputValue;
       if (typeof val === 'string') {
         const menu = this.findBlock(val);
-        if (menu) {
+        if (menu && (menu.opcode === menuOpcode || menu.shadow)) {
           for (const f of Object.values(menu.fields ?? {})) return String(f[0] ?? '');
+        } else if (menu) {
+          this.noteUnsupported(this.currentTarget?.name ?? '', `${b.opcode}(動的メニュー:${inputName})`);
+          this.notes.push(`${b.opcode} の ${inputName} は動的な値を使っています。ScratchPyでは未対応のため、元の .sb3 を保存してください`);
         }
       } else if (Array.isArray(val)) {
-        return String((val as unknown[])[1] ?? '');
+        if (val[0] === 12 || val[0] === 13) {
+          this.noteUnsupported(this.currentTarget?.name ?? '', `${b.opcode}(動的メニュー:${inputName})`);
+          this.notes.push(`${b.opcode} の ${inputName} は変数を使っています。ScratchPyでは未対応のため、元の .sb3 を保存してください`);
+        } else return String((val as unknown[])[1] ?? '');
       }
       // ダイナミック(レポータ差し込み) → shadow から
       const shadow = (input as unknown[])[2];

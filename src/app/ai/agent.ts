@@ -3,7 +3,8 @@ import { analyzeText, textToSb3, ExportError, type AssetStore } from '../../core
 
 export type Provider = 'gemini' | 'openai' | 'anthropic';
 export type Turn = {role:'user'|'assistant'; content:string};
-export type AgentEvent = { kind:'request'|'check'|'repair'; attempt:number; detail:string };
+export type RetryInfo = { retry:number; waitMs:number; status:number };
+export type AgentEvent = { kind:'request'|'check'|'repair'|'retry'; attempt:number; detail:string; retry?:RetryInfo };
 export type AgentResult = { reply:string; code:string|null; valid:boolean; diagnostics:string[]; attempts:number; warnings:string[] };
 export const DEFAULT_MODELS:Record<Provider,string> = {gemini:'gemini-2.5-flash',openai:'gpt-4.1-mini',anthropic:'claude-sonnet-4-5'};
 export const MAX_SOURCE_CHARS = 80000;
@@ -23,28 +24,75 @@ function safeMessage(value:unknown,key:string):string {
   return (key ? raw.split(key).join('[redacted]') : raw).slice(0,900);
 }
 
+
+// 503 indicates temporary Gemini service capacity trouble, not necessarily a bad key.
+// Limit retries and never retry earlier than Retry-After; don't wait indefinitely.
+export const GEMINI_503_RETRIES = 2;
+const MAX_RETRY_WAIT_MS = 10000;
+export class ProviderHttpError extends Error {
+  constructor(public readonly provider:Provider, public readonly status:number, message:string) {
+    super(message); this.name='ProviderHttpError';
+  }
+}
+export function describeProviderError(error:unknown, language:'ja'|'en'):string {
+  if(error instanceof ProviderHttpError && error.provider==='gemini' && error.status===503)
+    return language==='ja'
+      ? 'Geminiのモデルが混雑しているか、一時的に利用できません（HTTP 503）。少し待って再送するか、API設定で利用可能な別のモデルIDを試してください。APIキーの変更は通常必要ありません。'
+      : 'The Gemini model is busy or temporarily unavailable (HTTP 503). Wait and try again, or choose another available model ID in API settings. Changing your API key is usually unnecessary.';
+  return error instanceof Error ? error.message : 'Provider request failed.';
+}
+function retryAfterMs(value:string|null):number {
+  if(!value) return 0;
+  const trimmed=value.trim();
+  if(/^\d+(?:\.\d+)?$/.test(trimmed)) return Number(trimmed)*1000;
+  const date=Date.parse(trimmed);
+  return Number.isFinite(date)?Math.max(0,date-Date.now()):0;
+}
+function waitForRetry(ms:number,signal:AbortSignal):Promise<void> {
+  return new Promise((resolve,reject)=>{
+    if(signal.aborted){reject(new DOMException('Canceled','AbortError'));return;}
+    const onAbort=()=>{clearTimeout(timer);signal.removeEventListener('abort',onAbort);reject(new DOMException('Canceled','AbortError'));};
+    const timer=setTimeout(()=>{signal.removeEventListener('abort',onAbort);resolve();},ms);
+    signal.addEventListener('abort',onAbort,{once:true});
+  });
+}
+
 /** Direct provider calls. The caller owns the key; it is never saved or logged here. */
-export async function requestModel(provider:Provider,key:string,model:string,turns:Turn[],signal:AbortSignal,fetcher:typeof fetch=fetch):Promise<string> {
+export async function requestModel(provider:Provider,key:string,model:string,turns:Turn[],signal:AbortSignal,fetcher:typeof fetch=fetch,systemPrompt:string=SYSTEM_PROMPT,onRetry?:(info:RetryInfo)=>void):Promise<string> {
   if(!key.trim()) throw new Error('API key is required.');
   const modelId=validateModel(model);
   let url:string; let headers:Record<string,string>; let body:unknown;
   if(provider==='openai'){
     url='https://api.openai.com/v1/responses';headers={'Content-Type':'application/json','Authorization':`Bearer ${key}`};
-    body={model:modelId,instructions:SYSTEM_PROMPT,input:turns.map(m=>({role:m.role,content:m.content})),max_output_tokens:6000,store:false};
+    body={model:modelId,instructions:systemPrompt,input:turns.map(m=>({role:m.role,content:m.content})),max_output_tokens:6000,store:false};
   } else if(provider==='gemini'){
     url=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent`;
     headers={'Content-Type':'application/json','x-goog-api-key':key};
-    body={systemInstruction:{parts:[{text:SYSTEM_PROMPT}]},contents:turns.map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]})),generationConfig:{maxOutputTokens:6000}};
+    body={systemInstruction:{parts:[{text:systemPrompt}]},contents:turns.map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]})),generationConfig:{maxOutputTokens:6000}};
   } else {
     url='https://api.anthropic.com/v1/messages';headers={'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'};
-    body={model:modelId,max_tokens:6000,system:SYSTEM_PROMPT,messages:turns.map(m=>({role:m.role,content:m.content}))};
+    body={model:modelId,max_tokens:6000,system:systemPrompt,messages:turns.map(m=>({role:m.role,content:m.content}))};
   }
   let response:Response;
-  try { response=await fetcher(url,{method:'POST',headers,body:JSON.stringify(body),signal}); }
-  catch(e){ if(signal.aborted) throw new DOMException('Canceled','AbortError'); throw new Error(`Network error or browser CORS restriction. ${safeMessage((e as Error).message,key)}`); }
+  for(let attempt=0;;attempt++){
+    if(signal.aborted) throw new DOMException('Canceled','AbortError');
+    try { response=await fetcher(url,{method:'POST',headers,body:JSON.stringify(body),signal}); }
+    catch(e){ if(signal.aborted) throw new DOMException('Canceled','AbortError'); throw new Error(`Network error or browser CORS restriction. ${safeMessage((e as Error).message,key)}`); }
+    if(provider!=='gemini' || response.status!==503 || attempt>=GEMINI_503_RETRIES) break;
+    const serverDelay=retryAfterMs(response.headers.get('retry-after'));
+    const waitMs=Math.max(serverDelay,1000*2**attempt+Math.floor(Math.random()*500));
+    if(!Number.isFinite(waitMs) || waitMs>MAX_RETRY_WAIT_MS) break;
+    // Consume/discard the failed response before issuing a new one.
+    try { await response.body?.cancel(); } catch { /* no response body */ }
+    onRetry?.({retry:attempt+1,waitMs,status:503});
+    await waitForRetry(waitMs,signal);
+  }
   let data:any;
-  try {data=await response.json();} catch {throw new Error(`Provider HTTP ${response.status}: invalid response.`);}
-  if(!response.ok) throw new Error(`Provider HTTP ${response.status}: ${safeMessage(data?.error?.message ?? data?.message,key)}`);
+  try {data=await response.json();} catch {
+    if(!response.ok) throw new ProviderHttpError(provider,response.status,`Provider HTTP ${response.status}: invalid response.`);
+    throw new Error(`Provider HTTP ${response.status}: invalid response.`);
+  }
+  if(!response.ok) throw new ProviderHttpError(provider,response.status,`Provider HTTP ${response.status}: ${safeMessage(data?.error?.message ?? data?.message,key)}`);
   let output='';
   if(provider==='openai'){
     if(data.status==='incomplete') throw new Error('The provider response was incomplete; try a smaller request or another model.');
@@ -102,7 +150,7 @@ export async function runAgent(options:AgentOptions):Promise<AgentResult> {
   for(let attempt=1;attempt<=MAX_ATTEMPTS;attempt++){
     if(signal.aborted) throw new DOMException('Canceled','AbortError');
     onEvent?.({kind:'request',attempt,detail:'Requesting a response'});
-    const reply=await requestModel(provider,key,model,turns,signal,fetcher);
+    const reply=await requestModel(provider,key,model,turns,signal,fetcher,SYSTEM_PROMPT,info=>onEvent?.({kind:'retry',attempt,detail:'Gemini is busy; retrying.',retry:info}));
     const code=extractProject(reply);
     if(!code){
       // A malformed or multiple fenced response is not an answer we can safely apply.

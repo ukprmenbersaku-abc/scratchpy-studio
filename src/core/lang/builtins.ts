@@ -84,6 +84,7 @@ def({ name: 'hide', callType: 'command', target: 'sprite', overloads: [[], [{ na
 def({ name: 'switch_costume', callType: 'command', target: 'sprite', overloads: [[str('name')]], doc: '「コスチュームを (name) にする」', scratchBlock: 'looks_switchcostumeto', opcode: 'looks_switchcostumeto' });
 def({ name: 'next_costume', callType: 'command', target: 'sprite', overloads: [[]], doc: '「次のコスチュームにする」', scratchBlock: 'looks_nextcostume', opcode: 'looks_nextcostume' });
 def({ name: 'switch_backdrop', callType: 'command', target: 'both', overloads: [[str('name')]], doc: '「背景を (name) にする」', scratchBlock: 'looks_switchbackdropto', opcode: 'looks_switchbackdropto' });
+def({ name: 'switch_backdrop_and_wait', callType: 'command', target: 'both', overloads: [[str('name')]], doc: '背景を切り替えて待つ', scratchBlock: 'looks_switchbackdroptoandwait', opcode: 'looks_switchbackdroptoandwait' });
 def({ name: 'next_backdrop', callType: 'command', target: 'both', overloads: [[]], doc: '「次の背景にする」', scratchBlock: 'looks_nextbackdrop', opcode: 'looks_nextbackdrop' });
 def({ name: 'change_size', callType: 'command', target: 'sprite', overloads: [[num('change')]], doc: '「大きさを (change) ずつ変える」', scratchBlock: 'looks_changesizeby', opcode: 'looks_changesizeby' });
 def({ name: 'set_size', callType: 'command', target: 'sprite', overloads: [[num('size')]], doc: '「大きさを (size)% にする」', scratchBlock: 'looks_setsizeto', opcode: 'looks_setsizeto' });
@@ -102,6 +103,16 @@ def({ name: 'set_volume', callType: 'command', target: 'both', overloads: [[num(
 def({ name: 'change_sound_effect', callType: 'command', target: 'both', overloads: [[menu('effect', 'sound_effect'), num('change')]], doc: '「音の (effect) 効果を (change) ずつ変える」', scratchBlock: 'sound_changeeffectby', opcode: 'sound_changeeffectby' });
 def({ name: 'set_sound_effect', callType: 'command', target: 'both', overloads: [[menu('effect', 'sound_effect'), num('value')]], doc: '「音の (effect) 効果を (value) にする」', scratchBlock: 'sound_seteffectto', opcode: 'sound_seteffectto' });
 def({ name: 'clear_sound_effects', callType: 'command', target: 'both', overloads: [[]], doc: '「音の効果をなくす」', scratchBlock: 'sound_cleareffects', opcode: 'sound_cleareffects' });
+
+// --- 音楽拡張 (music) -----------------------------------------------------
+def({ name: 'play_drum', callType: 'command', target: 'both', overloads: [[num('drum'),num('beats')]], doc: 'ドラムを拍数だけ鳴らす', scratchBlock: 'music_playDrumForBeats', opcode: 'music_playDrumForBeats' });
+def({ name: 'play_midi_drum', callType: 'command', target: 'both', overloads: [[num('drum'),num('beats')]], doc: 'MIDIドラムを拍数だけ鳴らす', scratchBlock: 'music_midiPlayDrumForBeats', opcode: 'music_midiPlayDrumForBeats' });
+def({ name: 'rest_beats', callType: 'command', target: 'both', overloads: [[num('beats')]], doc: '指定の拍数休む', scratchBlock: 'music_restForBeats', opcode: 'music_restForBeats' });
+def({ name: 'play_note', callType: 'command', target: 'both', overloads: [[num('note'),num('beats')]], doc: '音符を指定の拍数鳴らす', scratchBlock: 'music_playNoteForBeats', opcode: 'music_playNoteForBeats' });
+def({ name: 'set_instrument', callType: 'command', target: 'both', overloads: [[num('instrument')]], doc: '楽器を設定する', scratchBlock: 'music_setInstrument', opcode: 'music_setInstrument' });
+def({ name: 'set_midi_instrument', callType: 'command', target: 'both', overloads: [[num('instrument')]], doc: 'MIDI楽器を設定する', scratchBlock: 'music_midiSetInstrument', opcode: 'music_midiSetInstrument' });
+def({ name: 'set_tempo', callType: 'command', target: 'both', overloads: [[num('tempo')]], doc: 'テンポを設定する', scratchBlock: 'music_setTempo', opcode: 'music_setTempo' });
+def({ name: 'change_tempo', callType: 'command', target: 'both', overloads: [[num('tempo')]], doc: 'テンポを変える', scratchBlock: 'music_changeTempo', opcode: 'music_changeTempo' });
 
 // --- イベント (event) ------------------------------------------------------
 def({ name: 'broadcast', callType: 'command', target: 'both', overloads: [[str('message')]], doc: '「(message) を送る」', scratchBlock: 'event_broadcast', opcode: 'event_broadcast' });
@@ -159,6 +170,8 @@ for (const [fname, mop, docja] of mathOps) {
 def({ name: 'mod', callType: 'reporter', target: 'both', overloads: [[num('a'), num('b')]], returnsFn: (ts) => (ts.every(t => t.kind === 'int') ? T_INT : T_FLOAT), doc: '「(a) を (b) で割った余り」', scratchBlock: 'operator_mod', opcode: 'operator_mod' });
 def({ name: 'letter', callType: 'reporter', target: 'both', overloads: [[num('index'), str('text')]], returns: T_STR, doc: '「(text) の (index) 番目の文字」', scratchBlock: 'operator_letter_of', opcode: 'operator_letter_of' });
 def({ name: 'join', callType: 'reporter', target: 'both', overloads: [[str('a'), str('b')]], returns: T_STR, doc: '「(a) と (b)」(文字列連結)', scratchBlock: 'operator_join', opcode: 'operator_join' });
+
+def({ name: 'item_number', callType: 'reporter', target: 'both', overloads: [[{name:'list', type:'listname'}, {name:'item',type:'any'}]], returns: T_INT, doc: 'リストの中で項目が最初に現れる位置 (なければ0)', scratchBlock: 'data_itemnumoflist', opcode: 'data_itemnumoflist' });
 
 // --- ペン (pen 拡張) -------------------------------------------------------
 def({ name: 'pen_down', callType: 'command', target: 'sprite', overloads: [[]], doc: '「ペンを下ろす」', scratchBlock: 'pen_penDown', opcode: 'pen_penDown' });

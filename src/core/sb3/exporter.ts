@@ -179,6 +179,7 @@ const MENU_INPUT_NAME: Record<string, string> = {
   motion_pointtowards: 'TOWARDS',
   looks_switchcostumeto: 'COSTUME',
   looks_switchbackdropto: 'BACKDROP',
+  looks_switchbackdroptoandwait: 'BACKDROP',
   sound_play: 'SOUND_MENU',
   sound_playuntildone: 'SOUND_MENU',
   control_create_clone_of: 'CLONE_OPTION',
@@ -976,6 +977,7 @@ class Exporter {
     }
 
     if (PEN_BUILTINS.has(name)) this.extensions.add('pen');
+    if (['play_drum','play_midi_drum','rest_beats','play_note','set_instrument','set_midi_instrument','set_tempo','change_tempo'].includes(name)) this.extensions.add('music');
 
     const r = this.compileBuiltin(bb, ctx, name, call.args, loc);
     if (!r) {
@@ -1088,6 +1090,14 @@ class Exporter {
           const id = bb.add('operator_length', { inputs });
           bb.adoptInputs(id, inputs);
           return { kind: 'block', id };
+        }
+        if (name0 === 'item_number') {
+          const list=e.args[0]; const listName=list?.type==='name'||list?.type==='listref'?list.name:null;
+          const ent=listName?ctx.listEntities.get(listName):undefined;
+          if (!ent || !listName || !e.args[1]) return this.err('item_number() のリストを解決できません', e.loc);
+          const inputs={ITEM:inputOf(this.compileExpr(bb,ctx,e.args[1]),[10,''])};
+          const id=bb.add('data_itemnumoflist',{inputs,fields:{LIST:[listName,this.listIdOf(ent)]}});
+          bb.adoptInputs(id,inputs);return {kind:'block',id};
         }
         if (name0 === 'var' && e.args[0]?.type === 'str') {
           const ent = ctx.varEntities.get(e.args[0].value);
@@ -1297,6 +1307,7 @@ class Exporter {
       case 'switch_costume': return menuIn('looks_switchcostumeto', 'looks_costume', 'COSTUME', S(0));
       case 'next_costume': return one('looks_nextcostume', {});
       case 'switch_backdrop': return menuIn('looks_switchbackdropto', 'looks_backdrops', 'BACKDROP', S(0));
+      case 'switch_backdrop_and_wait': return menuIn('looks_switchbackdroptoandwait', 'looks_backdrops', 'BACKDROP', S(0));
       case 'next_backdrop': return one('looks_nextbackdrop', {});
       case 'change_size': return one('looks_changesizeby', { CHANGE: inputOf(A(0), [4, '10']) });
       case 'set_size': return one('looks_setsizeto', { SIZE: inputOf(A(0), [4, '100']) });
@@ -1321,6 +1332,15 @@ class Exporter {
         if (slot.kind === 'block') bb.blocks[slot.id].parent = id;
         return { first: id, last: id };
       }
+      // --- music extension ---
+      case 'play_drum': return one('music_playDrumForBeats', {DRUM:inputOf(A(0),[4,'1']),BEATS:inputOf(A(1),[4,'0.25'])});
+      case 'play_midi_drum': return one('music_midiPlayDrumForBeats', {DRUM:inputOf(A(0),[4,'1']),BEATS:inputOf(A(1),[4,'0.25'])});
+      case 'rest_beats': return one('music_restForBeats', {BEATS:inputOf(A(0),[4,'0.25'])});
+      case 'play_note': return one('music_playNoteForBeats', {NOTE:inputOf(A(0),[4,'60']),BEATS:inputOf(A(1),[4,'0.25'])});
+      case 'set_instrument': return one('music_setInstrument', {INSTRUMENT:inputOf(A(0),[4,'1'])});
+      case 'set_midi_instrument': return one('music_midiSetInstrument', {INSTRUMENT:inputOf(A(0),[4,'1'])});
+      case 'set_tempo': return one('music_setTempo', {TEMPO:inputOf(A(0),[4,'60'])});
+      case 'change_tempo': return one('music_changeTempo', {TEMPO:inputOf(A(0),[4,'20'])});
       // --- sensing ---
       case 'reset_timer': return one('sensing_resettimer', {});
       case 'set_drag_mode': return one('sensing_setdragmode', {}, { DRAG_MODE: [S(0), null] });

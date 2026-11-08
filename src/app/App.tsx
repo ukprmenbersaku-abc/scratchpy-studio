@@ -16,6 +16,7 @@ import GuidePage, { parseGuideHash, type GuideId } from './components/GuidePage'
 import EnglishGuide from './components/EnglishGuide';
 import AgentPanel from './components/AgentPanel';
 import EditionMenu from './components/EditionMenu';
+import ScratchPlayer from './components/ScratchPlayer';
 import { EN, t, sampleTitle, sampleDescription, localizeSample } from './i18n';
 import {
   IconLogo, IconFolderOpen, IconDownload, IconWand, IconFilePlus,
@@ -32,6 +33,8 @@ let logSeq = 0;
 export default function App() {
   const [text, setText] = useState<string>(localizeSample(SAMPLES[0].code));
   const [fileName, setFileName] = useState<string>('');
+  const [originalSb3, setOriginalSb3] = useState<Uint8Array|null>(null);
+  const [importNotes, setImportNotes] = useState<string[]>([]);
   const [assetStore, setAssetStore] = useState<AssetStore>(emptyAssetStore);
   const [analysis, setAnalysis] = useState<TextAnalysis | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -107,6 +110,8 @@ export default function App() {
       setText(imp.text);
       setAssetStore(imp.assetStore);
       setFileName(name);
+      setOriginalSb3(bytes.slice());
+      setImportNotes(imp.notes);
       const details: string[] = [];
       details.push(`${t('スプライト数', 'Sprites')}: ${imp.project.targets.length - 1} / ${t('ブロック数', 'Blocks')}: ${imp.project.targets.reduce((n, t) => n + Object.keys(t.blocks ?? {}).length, 0)}`);
       for (const n of imp.notes) details.push(n);
@@ -134,6 +139,8 @@ export default function App() {
 
   // ---- .sb3 書き出し ----
   const onDownload = useCallback(() => {
+    if (blockDirty) { addLog('warn', t('未反映のブロック変更があります。先にコードに反映してください。','Apply your block changes before downloading.')); setTab('log'); return; }
+    if (importNotes.length && !window.confirm(t('読み込んだ作品に変換時の警告があります。未対応ブロックや情報が書き出し時に失われる可能性があります。元の.sb3を残したうえで続けますか？','The imported project has conversion warnings. Unsupported blocks or data may be lost. Keep the original .sb3 and continue?'))) return;
     setBusy(true);
     try {
       const out = textToSb3(text, assetStore);
@@ -163,7 +170,7 @@ export default function App() {
     } finally {
       setBusy(false);
     }
-  }, [text, assetStore, fileName, addLog]);
+  }, [text, assetStore, fileName, addLog, importNotes, blockDirty]);
 
   // ---- 整形 ----
   const onFormat = useCallback(() => {
@@ -184,6 +191,8 @@ export default function App() {
     setText(localizeSample(s.code));
     setAssetStore(emptyAssetStore());
     setFileName('');
+    setOriginalSb3(null);
+    setImportNotes([]);
     addLog('info', EN ? `Loaded sample: ${sampleTitle[s.id] ?? s.title}` : `サンプル「${s.title}」を読み込みました`, [EN ? sampleDescription[s.id] ?? s.description : s.description]);
   }, [addLog]);
 
@@ -191,6 +200,8 @@ export default function App() {
     setText(EN ? 'stage:\n    pass\n\nsprite Cat:\n    costume costume1\n\n    on flag:\n        say("Hello!")\n' : 'stage:\n    pass\n\nsprite Cat:\n    costume costume1\n\n    on flag:\n        say("こんにちは!")\n');
     setAssetStore(emptyAssetStore());
     setFileName('');
+    setOriginalSb3(null);
+    setImportNotes([]);
   }, []);
 
   // ---- ドラッグ&ドロップ ----
@@ -321,6 +332,7 @@ export default function App() {
         </div>
 
         <div className="side-pane">
+          <ScratchPlayer text={text} assets={assetStore} blockDirty={blockDirty} original={originalSb3} hasConversionWarnings={importNotes.length>0}/>
           <div className="tabs">
             <button className={`tab ai-tab ${tab === 'ai' ? 'active' : ''}`} onClick={() => { setAiOpened(true); setTab('ai'); }}><IconWand size={14} /> {t('AIアシスタント','AI Assistant')}</button>
             <button className={`tab ${tab === 'diagnostics' ? 'active' : ''}`} onClick={() => setTab('diagnostics')}>

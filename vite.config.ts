@@ -1,10 +1,26 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import { createReadStream } from 'node:fs';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 
 export default defineConfig({
   base: process.env.VITE_APP_BASE || '/',
   plugins: [react(), {
     name: 'scratchpy-page-metadata',
+    // Vite transforms .js URLs in dev mode; the sandbox needs the original
+    // prebuilt UMD script, so serve those bytes as a plain classic script.
+    configureServer(server) {
+      const runtimePath = require.resolve('@turbowarp/scaffolding/with-music');
+      server.middlewares.use('/__scratchpy_engine__.js', (req, res) => {
+        res.setHeader('Content-Type', 'text/javascript; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache');
+        if (req.method === 'HEAD') { res.end(); return; }
+        const stream = createReadStream(runtimePath);
+        stream.on('error', () => { if (!res.headersSent) res.statusCode = 500; res.end(); });
+        stream.pipe(res);
+      });
+    },
     // Match Pages' directory canonicalization: Vite otherwise serves the root
     // SPA for slashless edition paths such as /en and /education/en.
     configurePreviewServer(server) {

@@ -3,7 +3,7 @@
 # Use a managed process / terminal; Ctrl-C stops all servers.
 set -Eeuo pipefail
 cd "$(dirname "$0")/.."
-if [[ ! -x node_modules/.bin/vite ]] || ! node -e "require.resolve('react-markdown'); require.resolve('blockly')" >/dev/null 2>&1; then
+if [[ ! -x node_modules/.bin/vite ]] || ! node -e "require.resolve('react-markdown'); require.resolve('blockly'); require.resolve('@turbowarp/scaffolding/with-music')" >/dev/null 2>&1; then
   echo 'Restoring dependencies with npm ci...'
   npm ci --no-audit --no-fund
 fi

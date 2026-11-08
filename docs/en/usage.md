@@ -29,3 +29,19 @@ This English guide is an overview. The complete technical reference is available
 Select Google Gemini, OpenAI, or Anthropic, enter your own API key and model ID, acknowledge the data transfer and potential charges, then send a request. The key is kept only in page memory, but can be exposed to the device owner, browser extensions and developer tools. Avoid shared devices and restrict key permissions and spending. Code, conversation, diagnostics and the ScratchPy reference are sent directly to the chosen provider; image and sound files themselves are not sent. Browser CORS and organizational policies can block requests, especially for some Anthropic organizations.
 
 The assistant checks syntax, static types and .sb3 structure, and may make up to two paid repair attempts after the initial request. It cannot run Scratch or generate assets. Review the proposal before explicitly applying it; proposals cannot be applied if the project has changed, errors remain or block edits are uncommitted. Keep the original .sb3 and test the result in Scratch.
+
+
+## AI learning support (Education editions)
+
+The Education page has an optional chat learning guide, available in lessons and the free editor. A parent or teacher should choose a provider and enter their own API key, review age restrictions, parental consent, provider policies and possible charges. A checkbox is not age verification. The browser sends the conversation, lesson title and goal, and ScratchPy reference directly to the provider. Code and local errors are sent only when you opt in. Avoid personal information; images and sound files are not sent. The key stays in page memory, but may be visible to device users and extensions.
+
+The assistant is prompted to offer hints rather than complete challenge answers, but its replies are not guaranteed accurate or appropriate; adult supervision is important. It cannot modify the editor or run Scratch. Clear the key via settings or reload the page. Changing the code-sharing setting resets the conversation history sent to the AI.
+
+
+## Scratch preview
+
+Select Run next to the editor to run the current converted project using TurboWarp Scaffolding; select Stop to stop it. After importing an .sb3, you can instead choose the original file. External extensions, networking, cloud sync, camera, microphone and external devices are disabled in the sandbox. ScratchPy conversion is not lossless for all blocks or extensions; review import warnings and keep the original. Lesson checks are static and do not grade runtime behavior.
+
+### Gemini HTTP 503
+
+A 503 can indicate temporary model overload or unavailability. The app retries up to twice with increasing delays; you can stop while it waits. If it still fails, wait and try again, or select another available model ID. You usually do not need to change your API key. Failed requests may still appear as 503 errors in browser developer tools. Retries can cause additional requests and charges. Studio can make up to nine API calls if each of its three generation/repair requests needs two retries.
